@@ -10,7 +10,7 @@ namespace NetworkExplorer
     public class Program
     {
         public static void Main(string[] args)
-        { 
+        {
             /*
              * Dve klicove casti, co program bude umet:
              * 1) zjistit aktivni hosty na networku
@@ -42,36 +42,51 @@ namespace NetworkExplorer
 
 
             string vstup = args[0];
-            //string vstup = "192.168.1.1/24";
-
-
-
-    		//TODO: oznamit znacku pc (sitovky) podle MAC adresy
-
-            //TODO: mby extractnout tohle do samostatne metody Check if ip is valid
-            string ipToScan;
+            //string vstup = "192.168.137.89/30";
             byte maska = 32;
             Regex ipRegex = new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}");
+            byte[] ipToScan = new byte[4];
+
+            //TODO: oznamit znacku pc (sitovky) podle MAC adresy
+
+            //TODO: mby extractnout tohle do samostatne metody Check if ip is valid
 
             if (ipRegex.IsMatch(vstup))
             {
                 if (vstup.Contains('/')) //v ip je i maska
                 {
-                    if (!byte.TryParse(vstup.Split('/')[1], out maska))
+                    if (!byte.TryParse(vstup.Split('/')[1], out maska))//parse co je za lomitkem (masku)
                     {
                         Console.WriteLine("Zadejte ip a masku ve tvaru 192.168.1.1/24 bez mezer");
                         return;
                     }
-                    if (maska <= 1 || maska >= 32)
+                    if (1 >= maska && maska <= 30)//jestli maska neni v normalnim rangi pro subnety
                     {
-                        Console.WriteLine("Maska musi byt mezi 1 a 32");
+                        Console.WriteLine("Maska musi byt mezi 1 a 30");
+                        return;
                     }
-                    ipToScan = vstup.Split('/')[0];
+
+                    //convert ip to byte array
+                    try
+                    {
+                        ipToScan = Array.ConvertAll(vstup.Split('/')[0].Split('.'), x => byte.Parse(x));
+                    }
+                    catch (OverflowException e)
+                    {
+                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255");
+                    }
                 }
                 else
                 {
                     //validni ip bez masky
-                    ipToScan = vstup;
+                    try
+                    {
+                        ipToScan = Array.ConvertAll(vstup.Split('/')[0].Split('.'), x => byte.Parse(x));
+                    }
+                    catch (OverflowException e)
+                    {
+                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255");
+                    }
                 }
             }
             else
@@ -81,8 +96,8 @@ namespace NetworkExplorer
             }
 
 
-            Console.WriteLine(ipToScan);
-            Console.WriteLine(maska);
+            Console.WriteLine("ip zadana uzivatelem " + String.Join('.', ipToScan));
+            Console.WriteLine("maska zadana uzivatelem " + maska);
 
             //handle nejakych commandu
             //pokud dostanu jenom single ip bez argumewntu a masky, tak na ni oskenuju porty.
@@ -96,8 +111,9 @@ namespace NetworkExplorer
             {
                 explorer.PingAdress(ipToScan);
             }
+            else
             {
-                explorer.PingSweepRange(ipToScan, maska);
+                explorer.PingSweepRange(ipToScan, maska).Wait();
 
             }
         }
