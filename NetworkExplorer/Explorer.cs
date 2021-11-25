@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using System.Threading.Tasks;
@@ -30,7 +31,7 @@ namespace NetworkExplorer
 
             for (UInt32 i = IPtoUInt32(networkIP) + 1; i <= IPtoUInt32(networkIP) + numberOfHosts; i++)
             {
-                Console.WriteLine(String.Join('.', UInt32toIP(i)));
+                //Console.WriteLine(String.Join('.', UInt32toIP(i)));
 
                 Ping ping = new Ping();
                 var task = PingAsync(ping, UInt32toIP(i));
@@ -71,9 +72,40 @@ namespace NetworkExplorer
             //await Task.WhenAll(pings);//tohle to nidky nereachne?
             Console.WriteLine(hosts.Count + "hostu");
             Console.WriteLine("Nalezeni hoste: ");
-            foreach(Device host in hosts)//TODO: vypisovani hostu uz za behu
+            foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu
             {
                 Console.WriteLine(String.Join('.', host.IP));
+            }
+
+
+
+            Console.WriteLine("my ip: " + Dns.GetHostEntry(Dns.GetHostName())
+                .AddressList
+                .First(x => x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                .ToString());
+            Console.WriteLine("hostname: " + Dns.GetHostName());
+            Console.WriteLine("pocet hostnamu: " + Dns.GetHostEntry(Dns.GetHostName()).AddressList.Length);
+
+            foreach (IPAddress ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(ip.ToString(), new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")))
+                {
+                    byte[] byteIP = new byte[4];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        byteIP[i] = byte.Parse(ip.ToString().Split('.')[i]);
+                    }
+
+                    if (IPtoUInt32(byteIP) > IPtoUInt32(networkIP) && IPtoUInt32(byteIP) < IPtoUInt32(networkIP) + numberOfHosts)
+                    {
+                        Console.WriteLine("Nase IP " + ip.ToString() + " je na skenovanem networku");
+                    }
+                }
+            }
+
+            foreach(Device device in hosts)
+            {//TODO: VERY GOOD THING, WORKS  ZOBRAZOVAT TENHLE VYSLEDEK NEKDE JINDE
+                Console.WriteLine(string.Join('.', device.IP) + " - " + Dns.GetHostEntry(new IPAddress(device.IP)).HostName);
             }
         }
 
