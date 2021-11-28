@@ -42,7 +42,7 @@ namespace NetworkExplorer
 
 
             string vstup = args[0];
-            //string vstup = "192.168.137.89/30";
+            //string vstup = "192.168.30.2/24";
             byte maska = 32;
             Regex ipRegex = new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}");
             byte[] ipToScan = new byte[4];
@@ -107,15 +107,20 @@ namespace NetworkExplorer
 
             Explorer explorer = new Explorer();
 
+
+            //TODO: predelat tohle aby se vovlala jedna metoda s argumentam nebo tak nejak idk
             if (maska == 32)
             {
                 explorer.PingAdress(ipToScan);
+                string mac = explorer.GetMACAndManufacturer(ipToScan);
+                Console.WriteLine(mac);
             }
             else
             {
                 explorer.PingSweepRange(ipToScan, maska).Wait();
-
             }
+
+
         }
     }
 }

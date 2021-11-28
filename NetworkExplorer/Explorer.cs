@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
-using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace NetworkExplorer
@@ -12,6 +12,7 @@ namespace NetworkExplorer
     {
         private object _zamek = new object();
         List<Device> hosts = new List<Device>();
+        byte[] localIP = new byte[4];
 
         public Explorer() //todo: tohle mby bude potreba, asi na predani adresy a masky a options
         { }
@@ -39,25 +40,8 @@ namespace NetworkExplorer
 
             }
 
-
-
-            //TODO: predelat parametr baseIP aby se to ziskalo z ip a masky
-            //for now to jenom stripnu
             string baseIP = String.Join('.', ipToScan.Take(3));
             Console.WriteLine("base ip: " + baseIP);
-            //TODO: udelat poradne pocitani range na scan z masky
-            //if (mask == 24)
-            //{
-            //    for (int i = 1; i < 255; i++)
-            //    {
-            //        string ip = baseIP + i.ToString();
-
-            //        Ping ping = new Ping();
-            //        var task = PingAsync(ping, ip);
-            //        pings.Add(task);
-            //    }
-            //}
-
             Console.WriteLine("pingu (v pings): " + pings.Count);
             Console.WriteLine("hostu (v hosts):" + hosts.Count);
 
@@ -77,36 +61,22 @@ namespace NetworkExplorer
                 Console.WriteLine(String.Join('.', host.IP));
             }
 
+            IsLocalMachineConnectedToScannedNet(networkIP, numberOfHosts); //sice nic nedelam s outputem, ale volam tuto metodu,
+                                                                           //abych si priradil do promenne "localIP" moji ip ktera je na spolecnem subnetu jako skenovane ip
 
-
-            Console.WriteLine("my ip: " + Dns.GetHostEntry(Dns.GetHostName())
-                .AddressList
-                .First(x => x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                .ToString());
-            Console.WriteLine("hostname: " + Dns.GetHostName());
-            Console.WriteLine("pocet hostnamu: " + Dns.GetHostEntry(Dns.GetHostName()).AddressList.Length);
-
-            foreach (IPAddress ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
-            {
-                if (System.Text.RegularExpressions.Regex.IsMatch(ip.ToString(), new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")))
-                {
-                    byte[] byteIP = new byte[4];
-                    for (int i = 0; i < 4; i++)
-                    {
-                        byteIP[i] = byte.Parse(ip.ToString().Split('.')[i]);
-                    }
-
-                    if (IPtoUInt32(byteIP) > IPtoUInt32(networkIP) && IPtoUInt32(byteIP) < IPtoUInt32(networkIP) + numberOfHosts)
-                    {
-                        Console.WriteLine("Nase IP " + ip.ToString() + " je na skenovanem networku");
-                    }
-                }
-            }
-
-            foreach(Device device in hosts)
-            {//TODO: VERY GOOD THING, WORKS  ZOBRAZOVAT TENHLE VYSLEDEK NEKDE JINDE
-                Console.WriteLine(string.Join('.', device.IP) + " - " + Dns.GetHostEntry(new IPAddress(device.IP)).HostName);
-            }
+            //Console.WriteLine("Trying to look up devices' hostnames");
+            //foreach (Device device in hosts)
+            //{//TODO: VERY GOOD THING, WORKS  ZOBRAZOVAT TENHLE VYSLEDEK NEKDE JINDE
+            //    try
+            //    {
+            //        Console.Write(string.Join('.', new IPAddress(device.IP)) + " - ");
+            //        Console.WriteLine(Dns.GetHostEntry(new IPAddress(device.IP)).HostName);
+            //    }
+            //    catch
+            //    {
+            //        Console.WriteLine("DNS jmeno nenalezeno, pravdepodobne z duvodu nedostupneho DNS serveru");
+            //    }
+            //}
         }
 
         internal void PingAdress(byte[] ip)
@@ -118,12 +88,124 @@ namespace NetworkExplorer
             if (reply.Status == IPStatus.Success)
             {
                 Console.WriteLine("Scanned IP " + reply.Address + " and host is UP");
+
+                hosts.Add(new Device(ip));
+
+                ////todo: extract do samostatne metod
+                //Console.WriteLine("Trying to look up device's hostname");
+                //try
+                //{
+                //    Console.Write(string.Join('.', reply.Address) + " - ");
+                //    Console.WriteLine(Dns.GetHostEntry(reply.Address).HostName);
+                //}
+                //catch
+                //{
+                //    Console.WriteLine("DNS jmeno nenalezeno, pravdepodobne z duvodu nedostupneho DNS serveru");
+                //}                
             }
+
             else
             {
                 Console.WriteLine("Host on " + reply.Address + " is either down or ICMP packets are filtered.");
             }
         }
+
+
+        private bool IsLocalMachineConnectedToScannedNet(byte[] networkIP, int numberOfHosts)
+        {
+            //Console.WriteLine("my ip: " + Dns.GetHostEntry(Dns.GetHostName())
+            //    .AddressList
+            //    .First(x => x.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+            //    .ToString());
+            //Console.WriteLine("muj hostname: " + Dns.GetHostName());
+            //Console.WriteLine("pocet mych hostnamu: " + Dns.GetHostEntry(Dns.GetHostName()).AddressList.Length);
+
+            foreach (IPAddress ip in Dns.GetHostEntry(Dns.GetHostName()).AddressList)
+            {
+                if (System.Text.RegularExpressions.Regex.IsMatch(ip.ToString(), new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}")))//check for ipv4 ip
+                {
+                    byte[] byteIP = new byte[4];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        byteIP[i] = byte.Parse(ip.ToString().Split('.')[i]);
+                    }
+
+                    if (IPtoUInt32(byteIP) > IPtoUInt32(networkIP) && IPtoUInt32(byteIP) < IPtoUInt32(networkIP) + numberOfHosts)
+                    {
+                        Console.WriteLine("Nase IP " + ip.ToString() + " je na skenovanem networku");
+                        localIP = Array.ConvertAll(ip.ToString().Split('/')[0].Split('.'), x => byte.Parse(x));
+                        return true;
+                    }
+                }
+            }
+            return false;//nenasla se zadna nase ip, ktera by byla na skenovanem networku
+        }
+
+        public string GetMACAndManufacturer(byte[] ip)
+        {
+            string output = "";
+
+            //checknu ARP table
+            System.Diagnostics.Process process = new System.Diagnostics.Process();
+            System.Diagnostics.ProcessStartInfo info = new System.Diagnostics.ProcessStartInfo();
+            info.FileName = "cmd.exe";
+            info.Arguments = "/C arp -a";
+            info.UseShellExecute = false;
+            info.RedirectStandardOutput = true;
+            process.StartInfo = info;
+
+            process.Start();
+
+            //Regex regex = new Regex("(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))"); //(192\.168\.0\.103)\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))
+            //string regexString = @"(192\.168\.0\.103)\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))";
+            string regexString = @"\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))";
+            Regex regex = new Regex("(" + String.Join(@"\.", ip) + ")" + regexString);
+            while (!process.StandardOutput.EndOfStream)
+            {
+                string line = process.StandardOutput.ReadLine() ?? "";
+                //Console.WriteLine(line);
+                Match match = regex.Match(line);
+
+                if (match.Success)
+                {
+                    string mac = match.Groups["mac"].Value;
+                    output += mac;
+
+
+                    Ping cfPing = new Ping();
+                    PingReply cfReply = cfPing.Send("1.1.1.1", 1000);
+                    if (cfReply.Status == IPStatus.Success)//check dostupnosti internetoveho pripojeni
+                    {
+                        //zjistim vyrobce sitove karty zarizeni
+                        //string url = "https://api.macvendors.com/" + mac;
+                        string url = "https://macvendors.co/api/vendorname/" + mac;
+
+                        WebRequest wrGETURL = WebRequest.Create(url);
+
+                        Stream objStream;
+                        objStream = wrGETURL.GetResponse().GetResponseStream();
+
+                        StreamReader objReader = new StreamReader(objStream);
+
+                        string sLine = "";
+                        while (sLine != null)
+                        {
+                            sLine = objReader.ReadLine();
+                            if (sLine != null)
+                                output += " - " + sLine;
+                        }
+                    }
+                    else
+                    {
+                        Console.WriteLine("neni pristup k interenetu");
+                        //pokud nemam pripojeni k internetu, vypisu jenom MAC adresu, mozna pozdeji se rozhodnu pro j=nejakou hlasku
+                        //Console.WriteLine("no interenet connection");
+                    }
+                }
+            }
+            return output;
+        }
+
 
         private async Task PingAsync(Ping ping, byte[] ip)
         {
@@ -141,9 +223,6 @@ namespace NetworkExplorer
 
         private byte[] GetNetAddress(byte[] ip, byte mask)
         {
-            //TODO: udelat GetNetAddress metodu
-
-            //do binMask si dam maksu site v binarni podobe
             string binMask = "";
             for (byte i = 0; i < mask; i++) { binMask += "1"; }
             binMask = binMask.PadRight(32, '0');
@@ -177,8 +256,6 @@ namespace NetworkExplorer
 
         }
 
-
-
         //ipNumber will look for example like this: 3232235830, but it means 11000000101010000000000100110110 in binary, which is easy transalte to 11000000.10101000.00000001.00110110 => 192.168.1.54
         private byte[] UInt32toIP(UInt32 ipNumber)
         {
@@ -190,7 +267,6 @@ namespace NetworkExplorer
             }
             return ipArray;
         }
-
 
         private UInt32 IPtoUInt32(byte[] ip)
         {
