@@ -28,42 +28,61 @@ namespace NetworkExplorer
             Console.WriteLine("network address: " + String.Join('.', networkIP));
             Console.WriteLine("spocitano povolenych host ip na siti: " + numberOfHosts);
 
+            IsLocalMachineConnectedToScannedNet(networkIP, numberOfHosts); //sice nic nedelam s outputem, ale volam tuto metodu,
+                                                                           //abych si priradil do promenne "localIP" moji ip ktera je na spolecnem subnetu jako skenovane ip
 
-
+            //the actual ping loop.
             for (UInt32 i = IPtoUInt32(networkIP) + 1; i <= IPtoUInt32(networkIP) + numberOfHosts; i++)
             {
                 //Console.WriteLine(String.Join('.', UInt32toIP(i)));
 
+                if (UInt32toIP(i).SequenceEqual(localIP))
+                {
+                    //don't ping my ip, cause user prolly doesn't care whether his own pc is running
+                    continue;
+                }
+
                 Ping ping = new Ping();
-                var task = PingAsync(ping, UInt32toIP(i));
+                var task = PingAsync(ping, UInt32toIP(i), hosts);
                 pings.Add(task);
 
             }
 
-            string baseIP = String.Join('.', ipToScan.Take(3));
-            Console.WriteLine("base ip: " + baseIP);
-            Console.WriteLine("pingu (v pings): " + pings.Count);
-            Console.WriteLine("hostu (v hosts):" + hosts.Count);
+            //pocka na dokonceni scanu
+            Task.WhenAll(pings).Wait();
+            //await Task.WhenAll(pings).ContinueWith(p =>
+            //{
+            //    //do stuff az se dodelaji pingy
+            //    //(vypsat result)
+            //});
 
-            //pocka na
-            await Task.WhenAll(pings).ContinueWith(p =>
+            Console.Write("Scan dokoncen. ");
+
+            if (hosts.Count == 0)
             {
-                //do stuff az se dodelaji pingy
-                //(vypsat result)
+                Console.WriteLine("Nebyli nalezeni zadni aktivni hoste na zadane siti!");
+                return;
+            }
                 Console.WriteLine("Nalezeno ip: " + hosts.Count);
-            });
+            //string baseIP = String.Join('.', ipToScan.Take(3)); 
+            //Console.WriteLine("base ip: " + baseIP);
+            //Console.WriteLine("pingu (v pings): " + pings.Count);
 
-            //await Task.WhenAll(pings);//tohle to nidky nereachne?
-            Console.WriteLine(hosts.Count + "hostu");
             Console.WriteLine("Nalezeni hoste: ");
-            foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu
+
+            foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu 
             {
-                Console.WriteLine(String.Join('.', host.IP));
+                Console.WriteLine(String.Join('.', host.IP) + " is up!");
+
+                Task<String> macTask = GetMACAndManufacturerAsync(host.IP);
+                macTask.Wait();
+                string mac = macTask.Result;
+                Console.WriteLine("\t" + mac);
             }
 
-            IsLocalMachineConnectedToScannedNet(networkIP, numberOfHosts); //sice nic nedelam s outputem, ale volam tuto metodu,
-                                                                           //abych si priradil do promenne "localIP" moji ip ktera je na spolecnem subnetu jako skenovane ip
 
+
+            #region !! nemazat !! potreba presunot do metody nebo tak neco (hostnames pocitacu)
             //Console.WriteLine("Trying to look up devices' hostnames");
             //foreach (Device device in hosts)
             //{//TODO: VERY GOOD THING, WORKS  ZOBRAZOVAT TENHLE VYSLEDEK NEKDE JINDE
@@ -77,6 +96,7 @@ namespace NetworkExplorer
             //        Console.WriteLine("DNS jmeno nenalezeno, pravdepodobne z duvodu nedostupneho DNS serveru");
             //    }
             //}
+            #endregion
         }
 
         internal void PingAdress(byte[] ip)
@@ -134,6 +154,13 @@ namespace NetworkExplorer
                     {
                         Console.WriteLine("Nase IP " + ip.ToString() + " je na skenovanem networku");
                         localIP = Array.ConvertAll(ip.ToString().Split('/')[0].Split('.'), x => byte.Parse(x));
+
+                        //toto asi presunuto do primo scanovaci smycky
+                        ////smazu ip tohoto pocitace pokud je pripojen ke skenovane siti, protze nas nezajima
+                        //Device device = hosts.Find(host => host.IP.SequenceEqual(localIP));
+                        //hosts.Remove(device);   //TODO: BACHA MBY NA NULL ERRORY //EDIT: null errory nejou, akorat se to proste nesmaze
+                        ////Console.WriteLine("smazal jsem nasi ip: " + hosts.Remove(device));  
+
                         return true;
                     }
                 }
@@ -141,7 +168,7 @@ namespace NetworkExplorer
             return false;//nenasla se zadna nase ip, ktera by byla na skenovanem networku
         }
 
-        public string GetMACAndManufacturer(byte[] ip)
+        public async Task<string> GetMACAndManufacturerAsync(byte[] ip)
         {
             string output = "";
 
@@ -171,9 +198,10 @@ namespace NetworkExplorer
                     string mac = match.Groups["mac"].Value;
                     output += mac;
 
-
+                    //ping na zjisteni pristupu k internetu 
                     Ping cfPing = new Ping();
-                    PingReply cfReply = cfPing.Send("1.1.1.1", 1000);
+                    PingReply cfReply = await cfPing.SendPingAsync("1.1.1.1", 1000);
+
                     if (cfReply.Status == IPStatus.Success)//check dostupnosti internetoveho pripojeni
                     {
                         //zjistim vyrobce sitove karty zarizeni
@@ -197,7 +225,8 @@ namespace NetworkExplorer
                     }
                     else
                     {
-                        Console.WriteLine("neni pristup k interenetu");
+                        output += " - pro zjisteni vyrobce zarizeni se pripojte k internetu";
+
                         //pokud nemam pripojeni k internetu, vypisu jenom MAC adresu, mozna pozdeji se rozhodnu pro j=nejakou hlasku
                         //Console.WriteLine("no interenet connection");
                     }
@@ -206,14 +235,15 @@ namespace NetworkExplorer
             return output;
         }
 
-
-        private async Task PingAsync(Ping ping, byte[] ip)
+        private async Task PingAsync(Ping ping, byte[] ip, List<Device> hosts)
         {
             var reply = await ping.SendPingAsync(string.Join('.', ip), 100);
 
             if (reply.Status == IPStatus.Success)
             {
-                Console.WriteLine("yes");
+                //TODO: tady nejaky vypis co jsem nasel ig
+                
+                Console.WriteLine("found running device at " + String.Join('.', ip));
                 lock (_zamek)
                 {
                     hosts.Add(new Device(ip));
@@ -277,22 +307,5 @@ namespace NetworkExplorer
             }
             return Convert.ToUInt32(ipBinString, 2);
         }
-        /*
-        //converts 192.168.1.54 to 11000000.10101000.00000001.00110110 to UInt32 in binary (11000000101010000000000100110110) which is 3232235830 and is easier to iterate upon
-        //private UInt32 IPtoUint32(string ip)
-        //{
-        //    byte[] ipArray = new byte[4];
-        //    for (int i = 0; i < 4; i++)
-        //    {
-        //        ipArray[i] = byte.Parse(ip.Split('.')[i]);//todo:???broken??
-        //    }
-        //    string ipBinString = "";
-        //    for (int i = 0; i < 4; i++)
-        //    {
-        //        ipBinString += Convert.ToString(ipArray[i], 2).PadLeft(8, '0');
-        //    }
-        //    return Convert.ToUInt32(ipBinString, 2);
-        //}
-        */
     }
 }

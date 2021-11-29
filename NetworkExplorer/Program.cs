@@ -95,9 +95,9 @@ namespace NetworkExplorer
                 return;
             }
 
-
-            Console.WriteLine("ip zadana uzivatelem " + String.Join('.', ipToScan));
-            Console.WriteLine("maska zadana uzivatelem " + maska);
+            //todo: jen debug
+            //Console.WriteLine("ip zadana uzivatelem " + String.Join('.', ipToScan));
+            //Console.WriteLine("maska zadana uzivatelem " + maska);
 
             //handle nejakych commandu
             //pokud dostanu jenom single ip bez argumewntu a masky, tak na ni oskenuju porty.
@@ -112,8 +112,11 @@ namespace NetworkExplorer
             if (maska == 32)
             {
                 explorer.PingAdress(ipToScan);
-                string mac = explorer.GetMACAndManufacturer(ipToScan);
-                Console.WriteLine(mac);
+
+                Task<String> macTask = explorer.GetMACAndManufacturerAsync(ipToScan);
+                macTask.Wait();
+                string mac = macTask.Result;
+                Console.WriteLine("\t" + mac);
             }
             else
             {
