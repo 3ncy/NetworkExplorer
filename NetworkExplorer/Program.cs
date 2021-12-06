@@ -11,119 +11,233 @@ namespace NetworkExplorer
     {
         public static void Main(string[] args)
         {
-            /*
-             * Dve klicove casti, co program bude umet:
-             * 1) zjistit aktivni hosty na networku
-             * 2) zjistit co za oteverne porty na nich je
-             * 
-             * co je potreba udelat pro jednotlive casti
-             * 1)
-             *  (zjistit si masku site) 
-             *      - byla by to cool featurka, ale uzivatel ji muze zadat, tohle budu implementovat az zbyde cas
-             *  pingnout vsechny hosty a zjistit kdo je online
-             *      separate class "Pinger"
-             *          ta pingne vsechny hosty asynchronne 
-             *              (asi na jinem vlakne???? aby na hlavnim slo se ptat na status searche jako to ma nmap)
-             *              
-             *      
-             *  
-             * 
-             * 
-             */
-
 
             //handele a rozdeleni commandu 
             //format prikazu bude NetworkExplorer (mby aliasnout nebo vydavat exe jako "nexp")
-            //nexp 192.168.1.1/24           //pingne co je na siti za online pc
-            //nexp 192.168.1.1              //
-            //nexp 192.168.1.1:8080         //oskenuje co bezi na tom danem portu za dvojteckou
-            //nexp 192.168.1.1 -ports       //oskenuje co bezi na specifikovanem hostovi
-            //nexp 192.168.1.1/24 -ports    //oskenuje vsechny hosty na siti a vrati co na nich bezi (nejdriv vrati jenom senzma hostu)
+            //nexp 192.168.0.1/24
+            //nexp 192.168.0.1
+            //nexp 192.168.0.1 -p
+            //nexp 192.168.0.1/24 -p
+            //nexp 192.168.0.1 -p 8080
+            //nexp 192.168.0.1/24 -p 8080
+            //nexp 192.168.0.1 -p 22-57
+            //nexp 192.168.0.1/24 -p 22-57
+            //    args[0]↑  args[1]↑   ↑args[2]
 
 
-            string vstup = args[0];
-            //string vstup = "192.168.30.2/24";
-            byte maska = 32;
+
             Regex ipRegex = new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}");
             byte[] ipToScan = new byte[4];
+            byte maska = 32;//default 32, to pouzivam kdyz mam na mysli jen jedno zarizeni
+            bool scanPorts = false;
+            int startPort = default(int);
+            int endPort = default(int);
 
-            //TODO: oznamit znacku pc (sitovky) podle MAC adresy
+            //Console.WriteLine("args: ");
+            //foreach (string arg in args)
+            //{
+            //    Console.WriteLine("\"" + arg + "\"");
+            //    Console.WriteLine(arg.Trim() == "-p");
+            //}
 
-            //TODO: mby extractnout tohle do samostatne metody Check if ip is valid
-
-            if (ipRegex.IsMatch(vstup))
+            //handle/parse input:
+            if (args.Length == 0)
             {
-                if (vstup.Contains('/')) //v ip je i maska
+                ShowHelp();
+                return;
+            }
+            if (args.Contains("help"))  //TODO: tady si dat pozor kdyz uzivatel bude zadavat webovou stranku a ne ip
+            {
+                ShowHelp();
+                return;
+            }
+
+
+            //nejdrive zjistit jeste je vice parametru
+
+            if (args.Length > 1)
+            {
+                if (args[1].Trim() == "-p") //jestli chci skenovat port(y)
                 {
-                    if (!byte.TryParse(vstup.Split('/')[1], out maska))//parse co je za lomitkem (masku)
+                    scanPorts = true;
+                    if (args.Length > 2)    //vetsi nez 2 arg, tzn 3 argumenty, z toho prvni je ip adresa a druhy je "-p" 
+                    {
+                        if (args[2].Contains('-')) //chci skenovat range portu
+                        {
+                            if (!int.TryParse(args[2].Split('-')[0], out startPort) || !int.TryParse(args[2].Split('-')[1], out endPort))
+                            {
+                                Console.WriteLine("Nevalidni cislo portu.");
+                                return;
+                            }
+                            if (startPort > 65535 || startPort < 1 || endPort > 65535 || endPort < 1)
+                            {
+                                Console.WriteLine("Cislo portu musi byt mezi 1 a 65535");
+                                return;
+                            }
+                            if (startPort > endPort)
+                            {
+                                Console.WriteLine("Port na zacatku skenovaneho rozsahu musi byt mensi nez port na jeho konci!");
+                                return;
+                            }
+                        }
+                        else //chci skenovat jen jeden port
+                        {
+                            if (!int.TryParse(args[2], out startPort))
+                            {
+                                Console.WriteLine("Nevalidni cislo portu");
+                                return;
+                            }
+                            if (startPort > 65535 || startPort < 1)
+                            {
+                                Console.WriteLine("Cislo portu musi byt mezi 1 a 65535");
+                                return;
+                            }
+                            endPort = startPort;    //protoze chci skenovat jen jeden port
+                        }
+                    }
+                    else
+                    {
+                        //uzivatel chce skenovat porty, ale nezadal jake, tzn oskenuju well known ports
+                    }
+                }
+            }
+
+            //parsovani toho jestli chci skenovat porty a jake je vyreseno, ted naparsovani ip
+
+            if (ipRegex.IsMatch(args[0]))   //vstup obsahuje validni ip
+            {
+                if (args[0].Contains('/'))  //chci skenovat subnet (vstup obsahuje masku)
+                {
+                    if (!byte.TryParse(args[0].Split('/')[1], out maska))   //parse co je za lomitkem (masku)
                     {
                         Console.WriteLine("Zadejte ip a masku ve tvaru 192.168.1.1/24 bez mezer");
                         return;
                     }
-                    if (1 >= maska && maska <= 30)//jestli maska neni v normalnim rangi pro subnety
-                    {
+                    if (1 > maska || maska > 30)  //jestli maska neni v normalnim rangi pro subnety
+                    {   //todo: mozna povolit i masku /0, ale ta by obsahovala celej IPv4 internet
                         Console.WriteLine("Maska musi byt mezi 1 a 30");
                         return;
                     }
 
-                    //convert ip to byte array
                     try
                     {
-                        ipToScan = Array.ConvertAll(vstup.Split('/')[0].Split('.'), x => byte.Parse(x));
+                        ipToScan = Array.ConvertAll(args[0].Split('/')[0].Split('.'), x => byte.Parse(x));  //pokus o naparsovani zadane ip
                     }
-                    catch (OverflowException e)
+                    catch (OverflowException)
                     {
-                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255");
+                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255)");
                     }
                 }
-                else
+                else //chci skenovat jenom jedno zarizeni
                 {
-                    //validni ip bez masky
                     try
                     {
-                        ipToScan = Array.ConvertAll(vstup.Split('/')[0].Split('.'), x => byte.Parse(x));
+                        ipToScan = Array.ConvertAll(args[0].Split('/')[0].Split('.'), x => byte.Parse(x));  //pokus o naparsovani zadane ip
                     }
-                    catch (OverflowException e)
+                    catch (OverflowException)
                     {
-                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255");
+                        Console.WriteLine("Zadejte validni ip (vsechny oktety musi byt mezi hodnotami 0 a 255)");
                     }
                 }
             }
-            else
+            else //nevalidni vstup, zobrazim help
             {
-                Console.WriteLine("Zadejte ip adresu a pripadne masku ve tvaru 192.168.1.1/24 bez mezer");
+                ShowHelp();
                 return;
             }
 
-            //todo: jen debug
-            //Console.WriteLine("ip zadana uzivatelem " + String.Join('.', ipToScan));
-            //Console.WriteLine("maska zadana uzivatelem " + maska);
+            void ShowHelp()
+            {
+                Console.WriteLine("TOTO JE BASIC HELP, neni hototva");
+                //Console.WriteLine("Zadejte ip adresu a pripadne masku ve tvaru 192.168.1.1/24 bez mezer");
 
-            //handle nejakych commandu
-            //pokud dostanu jenom single ip bez argumewntu a masky, tak na ni oskenuju porty.
-            //pokud dostanu jenom ip s maskou, tak opinguju hosty a vratim je ktere jsou online
-            //pokud dostanu jenom ip a port, oskenuju ten port abych zjistil co na nem (jestli neco) bezi
-
-
-            Explorer explorer = new Explorer();
+                //todo: dodelat help metodu
+                //throw new NotImplementedException("Metoda 'Show Help' jeste neni hotova");
+            }
 
 
-            //TODO: predelat tohle aby se vovlala jedna metoda s argumentam nebo tak nejak idk
+            //HANDLE COMMANDS:
+
+            //Console.WriteLine($"ip: {String.Join('.', ipToScan)}\nmask: {maska}\nscanPorts; {scanPorts}\nstartPort: {startPort}\nendPort: {endPort}");
+
+
+            Explorer explorer = new();
+
+
             if (maska == 32)
             {
                 explorer.PingAdress(ipToScan);
 
-                Task<String> macTask = explorer.GetMACAndManufacturerAsync(ipToScan);
+                Task<string> macTask = explorer.GetMACAndManufacturerAsync(ipToScan); //je to jako task, protoze nektere veci muzou trochu trvat pri executovan iteto metody
                 macTask.Wait();
                 string mac = macTask.Result;
                 Console.WriteLine("\t" + mac);
+
+                if (scanPorts)
+                {
+                    if (startPort != 0 && startPort == endPort)   //skenuju jen jeden port
+                    {
+                        Console.WriteLine(explorer.ScanPort(ipToScan, startPort));
+                    }
+                    else if (startPort == 0 && endPort == 0)
+                    {
+                        List<string> ports = explorer.ScanWellKnownPorts(ipToScan);
+
+                        if (ports.Count == 0)
+                        {
+                            Console.WriteLine("Nebyly nalezeny zadne otevrene porty");
+                            return;
+                        }
+                        Console.WriteLine("Nalezene otevrene porty:");
+                        foreach (string text in ports)
+                        {
+                            Console.WriteLine(text);
+                        }
+                    }
+                    else //skenuju range portu
+                    {
+                        Console.WriteLine($"Zahajen scan tcp portu {startPort} az {endPort}.... (toto muze chvili trvat)");
+
+                        List<string> ports = explorer.ScanPortRange(ipToScan, startPort, endPort);
+
+                        if (ports.Count == 0)
+                        {
+                            Console.WriteLine("Nebyly nalezeny zadne otevrene porty");
+                            return;
+                        }
+                        Console.WriteLine("Nalezene otevrene porty:");
+                        foreach (string text in ports)
+                        {
+                            Console.WriteLine(text);
+                        }
+                    }
+                }
             }
-            else
+            else //chci skenovat celej range
             {
-                explorer.PingSweepRange(ipToScan, maska).Wait();
+                explorer.PingSweepRange(ipToScan, maska).Wait();   //musim waitovat, aby mi program neskoncil a nezabil background vlakna na kterych bezi pingy
+
+                if (scanPorts)
+                {
+                    //jelikoz se nemuze stat ze bych skenoval porty na zarizenich ktera jsem pred chvili nepingun, tak mi staci pracovat s listem hosts ve tride Explorer
+                    foreach (Device host in explorer.hosts)
+                    {
+                        Console.WriteLine(String.Join('.', host.IP) + ": ");
+                        if (startPort != 0 && startPort == endPort)   //skenuju jen jeden port na kazdem zarizeni
+                        {
+                            Console.WriteLine("\t" + explorer.ScanPort(host.IP, startPort));
+                        }
+                        else if (startPort == 0 && endPort == 0)    //skenuju well known ports na vsech zarizenich v siti
+                        {
+
+                        }
+                        else //skenuju range portu na vsech zarizenich
+                        {
+
+                        }
+                    }
+                }
             }
-
-
         }
     }
 }

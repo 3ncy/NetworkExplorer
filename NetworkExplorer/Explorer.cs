@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.NetworkInformation;
+using System.Net.Sockets;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
@@ -11,11 +12,15 @@ namespace NetworkExplorer
     internal class Explorer
     {
         private object _zamek = new object();
-        List<Device> hosts = new List<Device>();
+        public List<Device> hosts = new List<Device>();
         byte[] localIP = new byte[4];
 
-        public Explorer() //todo: tohle mby bude potreba, asi na predani adresy a masky a options
-        { }
+        //todo: consider using "ushort" as data type since maximum TCP port is 2^16 - 1 (65535)
+        //klic k portum: 20,21=ftp, 22=ssh, 23=telnet, 25=smtp, 53=dns, 80=http, 110=pop3, 143=imap, 194=irc, 443=https, 3389=RDP
+        private int[] wellknownPorts = { 80, 23, 443, 21, 22, 25, 3389, 110, 445, 139, 143, 53, 135, 3306, 8080, 1723, 111, 995, 993, 5900 };
+
+
+        public Explorer() { } //todo: tohle mby bude potreba, asi na predani adresy a masky a options
 
         internal async Task PingSweepRange(byte[] ipToScan, byte mask)
         {
@@ -34,8 +39,6 @@ namespace NetworkExplorer
             //the actual ping loop.
             for (UInt32 i = IPtoUInt32(networkIP) + 1; i <= IPtoUInt32(networkIP) + numberOfHosts; i++)
             {
-                //Console.WriteLine(String.Join('.', UInt32toIP(i)));
-
                 if (UInt32toIP(i).SequenceEqual(localIP))
                 {
                     //don't ping my ip, cause user prolly doesn't care whether his own pc is running
@@ -59,11 +62,12 @@ namespace NetworkExplorer
             Console.Write("Scan dokoncen. ");
 
             if (hosts.Count == 0)
-            {
+            {//pokud jsem nenasel zadne aktivni hosty, returnu
                 Console.WriteLine("Nebyli nalezeni zadni aktivni hoste na zadane siti!");
                 return;
             }
-                Console.WriteLine("Nalezeno ip: " + hosts.Count);
+
+            Console.WriteLine("Nalezeno ip: " + hosts.Count);
             //string baseIP = String.Join('.', ipToScan.Take(3)); 
             //Console.WriteLine("base ip: " + baseIP);
             //Console.WriteLine("pingu (v pings): " + pings.Count);
@@ -72,7 +76,7 @@ namespace NetworkExplorer
 
             foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu 
             {
-                Console.WriteLine(String.Join('.', host.IP) + " is up!");
+                Console.WriteLine(String.Join('.', host.IP) + " je online!");
 
                 Task<String> macTask = GetMACAndManufacturerAsync(host.IP);
                 macTask.Wait();
@@ -81,7 +85,7 @@ namespace NetworkExplorer
             }
 
 
-
+            //todo: dat hostname detection do samostatne metody
             #region !! nemazat !! potreba presunot do metody nebo tak neco (hostnames pocitacu)
             //Console.WriteLine("Trying to look up devices' hostnames");
             //foreach (Device device in hosts)
@@ -130,6 +134,150 @@ namespace NetworkExplorer
             }
         }
 
+        public List<string> ScanWellKnownPorts(byte[] ip)
+        {
+            List<Task> portScans = new List<Task>();
+            List<string> ports = new List<string>();
+
+            foreach (int port in wellknownPorts)
+            {
+                int refPort = port - 1;
+                Task<string> scan = Task.Run(() =>
+                {
+                    return GetPortInfo(ip, ref refPort);
+                });
+
+                portScans.Add(scan);
+
+                var awaiter = scan.GetAwaiter();
+
+                awaiter.OnCompleted(() =>
+                {
+                    string text = awaiter.GetResult();
+                    if (text != "")
+                    {
+                        ports.Add(text);
+                    }
+                });
+            }
+
+            //zobrazovani progresu
+            while (Task.WhenAll(portScans).Status != TaskStatus.RanToCompletion)
+            {
+                if (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                    int done = portScans.Count(s => s.Status == TaskStatus.RanToCompletion);
+                    Console.WriteLine($"{done}/{portScans.Count} ports scanned");
+
+                }
+            }
+
+            return ports;
+        }
+
+        private bool IsPortOpen(byte[] ip, int port)
+        {
+            using (System.Net.Sockets.TcpClient tcpClient = new System.Net.Sockets.TcpClient())
+            {
+                try
+                {
+                    tcpClient.Connect(string.Join('.', ip), port);
+
+                    return true;
+                }
+                catch (Exception)
+                {
+                    return false;
+                }
+            }
+        }
+
+        public string ScanPort(byte[] ip, int port)
+        {
+            int portNr = port - 1;  // this hack needed protoze aby to sknovani potu bylo thread safe, tak v GetPortInfo nejdrive inkrementuju cislo portu nez ho skenuju, takze musim zacinat o 1 nize
+            return GetPortInfo(ip, ref portNr);
+        }
+
+        public List<string> ScanPortRange(byte[] ip, int startPort, int endPort)
+        {
+            List<Task> portScans = new List<Task>();
+            List<string> ports = new List<string>();
+
+            int port = startPort - 1;   //tenhle hack je potreba protoze aby metoda GetPortInfo byla thread safe, tak nejdrive inkrementuju cislo portu nez ho skenuju, takze musim zacinat o 1 nize
+
+            for (int i = 0; i <= endPort - startPort; i++)
+            {
+                Task<string> scan = Task.Run<string>(() =>
+                {
+                    return GetPortInfo(ip, ref port);
+                });
+
+                portScans.Add(scan);
+
+                var awaiter = scan.GetAwaiter();
+
+                awaiter.OnCompleted(() =>
+                {
+                    string text = awaiter.GetResult();
+                    if (text != "")
+                    {
+                        ports.Add(text);
+                    }
+                });
+            }
+
+            //zobrazovani progresu
+            while (Task.WhenAll(portScans).Status != TaskStatus.RanToCompletion)
+            {
+                if (Console.KeyAvailable)
+                {
+                    Console.ReadKey(true);
+                    int done = portScans.Count(s => s.Status == TaskStatus.RanToCompletion);
+                    Console.WriteLine($"{done}/{portScans.Count} ports scanned");
+
+                }
+            }
+
+            return ports;
+        }
+
+        private string GetPortInfo(byte[] ip, ref int portCounter)
+        {
+            int port = Interlocked.Increment(ref portCounter);
+
+            using (TcpClient tcpClient = new TcpClient())
+            {
+                try
+                {
+                    tcpClient.Connect(string.Join('.', ip), port);
+                    NetworkStream stream = tcpClient.GetStream();
+
+                    stream.ReadTimeout = 1000;//todo: don't use magic number
+                    String responseData = String.Empty;
+                    byte[] data = new Byte[256];
+                    Int32 bytes = stream.Read(data, 0, data.Length);
+
+                    responseData = System.Text.Encoding.ASCII.GetString(data, 0, bytes);
+
+                    stream.Close();
+                    tcpClient.Close();
+                    return port + ": " + responseData;
+                }
+                catch (Exception ex)
+                {
+                    if (typeof(System.IO.IOException) == ex.GetType())
+                    {
+                        return port + ": open, but failed to respond";
+                    }
+                    else
+                    {
+                        //return OOO + ": closed";
+                        return "";
+                    }
+                }
+            }
+        }
 
         private bool IsLocalMachineConnectedToScannedNet(byte[] networkIP, int numberOfHosts)
         {
@@ -183,14 +331,16 @@ namespace NetworkExplorer
 
             process.Start();
 
+            //tyhle dva regexy jsou kdyz bych hledat danou IP adresu jenom na urcitem localnim intereface. To snad ale nebude potreba
             //Regex regex = new Regex("(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))"); //(192\.168\.0\.103)\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))
             //string regexString = @"(192\.168\.0\.103)\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))";
-            string regexString = @"\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))";
+
+            string regexString = @"\s+(?'mac'([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2}))"; //regex na MAC adresu
             Regex regex = new Regex("(" + String.Join(@"\.", ip) + ")" + regexString);
             while (!process.StandardOutput.EndOfStream)
             {
                 string line = process.StandardOutput.ReadLine() ?? "";
-                //Console.WriteLine(line);
+
                 Match match = regex.Match(line);
 
                 if (match.Success)
@@ -199,16 +349,18 @@ namespace NetworkExplorer
                     output += mac;
 
                     //ping na zjisteni pristupu k internetu 
-                    Ping cfPing = new Ping();
+                    Ping cfPing = new Ping(); //cf protoze pinguju Cloud Flare DNS
                     PingReply cfReply = await cfPing.SendPingAsync("1.1.1.1", 1000);
 
-                    if (cfReply.Status == IPStatus.Success)//check dostupnosti internetoveho pripojeni
+                    if (cfReply.Status == IPStatus.Success) //check dostupnosti internetoveho pripojeni
                     {
                         //zjistim vyrobce sitove karty zarizeni
                         //string url = "https://api.macvendors.com/" + mac;
-                        string url = "https://macvendors.co/api/vendorname/" + mac;
+                        string url = "https://macvendors.co/api/vendorname/" + mac; //tato api ma apparently vetsi databazi a ta minula me nejak timeoutovala iirc
 
+#pragma warning disable SYSLIB0014  //stfu for now, predelam mby l8tr az zjistim proc je to absolete
                         WebRequest wrGETURL = WebRequest.Create(url);
+#pragma warning restore SYSLIB0014
 
                         Stream objStream;
                         objStream = wrGETURL.GetResponse().GetResponseStream();
@@ -226,9 +378,6 @@ namespace NetworkExplorer
                     else
                     {
                         output += " - pro zjisteni vyrobce zarizeni se pripojte k internetu";
-
-                        //pokud nemam pripojeni k internetu, vypisu jenom MAC adresu, mozna pozdeji se rozhodnu pro j=nejakou hlasku
-                        //Console.WriteLine("no interenet connection");
                     }
                 }
             }
@@ -242,8 +391,8 @@ namespace NetworkExplorer
             if (reply.Status == IPStatus.Success)
             {
                 //TODO: tady nejaky vypis co jsem nasel ig
-                
-                Console.WriteLine("found running device at " + String.Join('.', ip));
+
+                Console.WriteLine("Nalezeno bezici zarizeni s ip " + String.Join('.', ip));
                 lock (_zamek)
                 {
                     hosts.Add(new Device(ip));
