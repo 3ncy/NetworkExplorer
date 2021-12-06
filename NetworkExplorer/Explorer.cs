@@ -112,7 +112,8 @@ namespace NetworkExplorer
             //Console.WriteLine($"Status: {reply.Status}\nRoundtrip time: {reply.RoundtripTime}\nAdress: {reply.Address}\nOptions: {reply.Options}");
             if (reply.Status == IPStatus.Success)
             {
-                Console.WriteLine("Scanned IP " + reply.Address + " and host is UP");
+                //Console.WriteLine("Scanned IP " + reply.Address + " and host is UP");
+                Console.WriteLine("Oskenovana IP " + reply.Address + " a host je zapnuty");
 
                 hosts.Add(new Device(ip));
 
@@ -131,7 +132,8 @@ namespace NetworkExplorer
 
             else
             {
-                Console.WriteLine("Host on " + reply.Address + " is either down or ICMP packets are filtered.");
+                //Console.WriteLine("Host on " + reply.Address + " is either down or ICMP packets are filtered.");
+                Console.WriteLine("Host na " + reply.Address + " je bud vypnuty nebo ICMP packety jsou filtrovany.");
             }
         }
 

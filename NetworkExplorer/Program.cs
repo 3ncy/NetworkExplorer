@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net;
-using System.Net.NetworkInformation;
 using System.Text.RegularExpressions;
 
 namespace NetworkExplorer
@@ -28,17 +24,11 @@ namespace NetworkExplorer
 
             Regex ipRegex = new(@"\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}");
             byte[] ipToScan = new byte[4];
-            byte maska = 32;//default 32, to pouzivam kdyz mam na mysli jen jedno zarizeni
+            byte maska = 32;    //default 32, to pouzivam kdyz mam na mysli jen jedno zarizeni
             bool scanPorts = false;
             int startPort = default(int);
             int endPort = default(int);
 
-            //Console.WriteLine("args: ");
-            //foreach (string arg in args)
-            //{
-            //    Console.WriteLine("\"" + arg + "\"");
-            //    Console.WriteLine(arg.Trim() == "-p");
-            //}
 
             //handle/parse input:
             if (args.Length == 0)
@@ -148,7 +138,18 @@ namespace NetworkExplorer
 
             void ShowHelp()
             {
-                Console.WriteLine("TOTO JE BASIC HELP, neni hototva");
+                //Console.WriteLine("TOTO JE BASIC HELP, neni hototva");
+                Console.ForegroundColor = ConsoleColor.Yellow;
+                Console.WriteLine("NEXP - Network Explorer");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("Commandline utilitka na oskenovani site a popr. zjisteni co kde bezi za sluzby ;)");
+                Console.WriteLine("Syntaxe: ");
+                Console.ForegroundColor = ConsoleColor.Green;
+                Console.WriteLine("nexp ip_adresa[/maska] [-p [port(y)]]");
+                Console.ForegroundColor = ConsoleColor.White;
+                Console.WriteLine("'ip_adresa' je IPv4 v decimalnim formatu;\t'/maska' je CIDR maska site s hodnotami mezi 1 a 30;");
+                Console.WriteLine("'port(y)' muze byt byd jeden port pro oskenovani na cilovem zarizeni/siti,\tnebo rozsah portu pro oskenovani ve formatu 'prvni_port'-'druhy_port'");
+
                 //Console.WriteLine("Zadejte ip adresu a pripadne masku ve tvaru 192.168.1.1/24 bez mezer");
 
                 //todo: dodelat help metodu
