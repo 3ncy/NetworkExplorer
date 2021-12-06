@@ -14,6 +14,8 @@ Pro zobrazeni progressu scanu portů, stisknete libovolnou klavesu
 Rozbalte stazny `.zip` do libovolne slozky kde aplikaci chcete spoustet, popr do slozky kterou mate v systemove promenne `$PATH`.  
 Pri pouzivani `linux-x64-self_contained.zip` a `win-x64-self_contained.zip` by nemelo byt potreba doinstalovavat nic, jelikoz ma aplikace vse zabalene v sobe.
 
+Popr. si muzete aplikaci buildnout sami ze stazeneho zdrojoveho kodu, na coz budete potrebovat `.net core 6`
+
 ## Pro OSE:
 
 Diky projektu jsem se naucil principy vicevlaknoveho programovani a jeho implementaci v C# (Tasky, Thready,…). Take networking: navazovani TCP spojeni, pingovani (a spravny management vlaken s tim spojeny),…  
