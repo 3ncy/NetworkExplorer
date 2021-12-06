@@ -22,7 +22,7 @@ namespace NetworkExplorer
 
         public Explorer() { } //todo: tohle mby bude potreba, asi na predani adresy a masky a options
 
-        internal async Task PingSweepRange(byte[] ipToScan, byte mask)
+        internal async Task<List<Device>> PingSweepRange(byte[] ipToScan, byte mask)
         {
 
             List<Task> pings = new List<Task>();
@@ -30,8 +30,8 @@ namespace NetworkExplorer
             int numberOfHosts = GetNumberOfHosts(ipToScan, mask);
 
             //TODO: tohle je jenom debug    
-            Console.WriteLine("network address: " + String.Join('.', networkIP));
-            Console.WriteLine("spocitano povolenych host ip na siti: " + numberOfHosts);
+            //Console.WriteLine("network address: " + String.Join('.', networkIP));
+            //Console.WriteLine("spocitano povolenych host ip na siti: " + numberOfHosts);
 
             IsLocalMachineConnectedToScannedNet(networkIP, numberOfHosts); //sice nic nedelam s outputem, ale volam tuto metodu,
                                                                            //abych si priradil do promenne "localIP" moji ip ktera je na spolecnem subnetu jako skenovane ip
@@ -59,31 +59,32 @@ namespace NetworkExplorer
             //    //(vypsat result)
             //});
 
-            Console.Write("Scan dokoncen. ");
+            //Console.Write("Scan dokoncen. ");
 
             if (hosts.Count == 0)
             {//pokud jsem nenasel zadne aktivni hosty, returnu
-                Console.WriteLine("Nebyli nalezeni zadni aktivni hoste na zadane siti!");
-                return;
+                //Console.WriteLine("Nebyli nalezeni zadni aktivni hoste na zadane siti!");
+                return new List<Device>();
             }
 
-            Console.WriteLine("Nalezeno ip: " + hosts.Count);
+            //Console.WriteLine("Nalezeno ip: " + hosts.Count);
             //string baseIP = String.Join('.', ipToScan.Take(3)); 
             //Console.WriteLine("base ip: " + baseIP);
             //Console.WriteLine("pingu (v pings): " + pings.Count);
 
-            Console.WriteLine("Nalezeni hoste: ");
+            //Console.WriteLine("Nalezeni hoste: ");
 
             foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu 
             {
-                Console.WriteLine(String.Join('.', host.IP) + " je online!");
+                //Console.WriteLine(String.Join('.', host.IP) + " je online!");
 
-                Task<String> macTask = GetMACAndManufacturerAsync(host.IP);
-                macTask.Wait();
-                string mac = macTask.Result;
-                Console.WriteLine("\t" + mac);
+                //Task<String> macTask = GetMACAndManufacturerAsync(host.IP);
+                //macTask.Wait();
+                //string mac = macTask.Result;
+                //Console.WriteLine("\t" + mac);
             }
 
+            return hosts;
 
             //todo: dat hostname detection do samostatne metody
             #region !! nemazat !! potreba presunot do metody nebo tak neco (hostnames pocitacu)
@@ -272,8 +273,8 @@ namespace NetworkExplorer
                     }
                     else
                     {
-                        //return OOO + ": closed";
-                        return "";
+                        //return port + ": closed";
+                        return String.Empty;
                     }
                 }
             }

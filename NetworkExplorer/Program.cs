@@ -177,10 +177,21 @@ namespace NetworkExplorer
                 {
                     if (startPort != 0 && startPort == endPort)   //skenuju jen jeden port
                     {
-                        Console.WriteLine(explorer.ScanPort(ipToScan, startPort));
+                        string result = explorer.ScanPort(ipToScan, startPort);
+
+                        if (result == String.Empty)
+                        {
+                            Console.WriteLine("\t" + startPort + ": port neodpovida (je pravdepodobne zavreny)");
+                        }
+                        else
+                        {
+                            Console.WriteLine("\t" + result);
+                        }
+                        //Console.WriteLine(explorer.ScanPort(ipToScan, startPort));
                     }
                     else if (startPort == 0 && endPort == 0)
                     {
+                        Console.WriteLine("Zahajen scan castych tcp portu.... (toto muze chvili trvat)");
                         List<string> ports = explorer.ScanWellKnownPorts(ipToScan);
 
                         if (ports.Count == 0)
@@ -215,25 +226,92 @@ namespace NetworkExplorer
             }
             else //chci skenovat celej range
             {
-                explorer.PingSweepRange(ipToScan, maska).Wait();   //musim waitovat, aby mi program neskoncil a nezabil background vlakna na kterych bezi pingy
+                var pingSweepTask = explorer.PingSweepRange(ipToScan, maska);
+                pingSweepTask.Wait();   //musim waitovat, aby mi program neskoncil a nezabil background vlakna na kterych bezi pingy
 
-                if (scanPorts)
+                //todo: jen debug
+                Console.WriteLine(pingSweepTask.Status);
+                Console.WriteLine(pingSweepTask.Result.Count);
+
+
+                List<Device> hosts = pingSweepTask.Result;
+
+                Console.WriteLine("hosts.count: " + hosts.Count);
+
+                Console.Write("Scan dokoncen. ");
+
+                if (hosts.Count == 0)
+                {//pokud jsem nenasel zadne aktivni hosty, returnu
+                    Console.WriteLine("Nebyli nalezeni zadni aktivni hoste na zadane siti!");
+                    return;
+                }
+
+                Console.WriteLine("Celkem nalezeno " + hosts.Count + " bezicich zarizeni");
+                Console.WriteLine("Nalezeni hoste: ");
+
+                foreach (Device host in hosts)//TODO: vypisovani hostu uz za behu 
                 {
-                    //jelikoz se nemuze stat ze bych skenoval porty na zarizenich ktera jsem pred chvili nepingun, tak mi staci pracovat s listem hosts ve tride Explorer
-                    foreach (Device host in explorer.hosts)
+                    Console.WriteLine(String.Join('.', host.IP) + " je online!");
+
+                    Task<String> macTask = explorer.GetMACAndManufacturerAsync(host.IP);
+                    macTask.Wait();
+                    string mac = macTask.Result;
+                    Console.WriteLine("\t" + mac);
+
+                    if (scanPorts)
                     {
-                        Console.WriteLine(String.Join('.', host.IP) + ": ");
-                        if (startPort != 0 && startPort == endPort)   //skenuju jen jeden port na kazdem zarizeni
-                        {
-                            Console.WriteLine("\t" + explorer.ScanPort(host.IP, startPort));
-                        }
-                        else if (startPort == 0 && endPort == 0)    //skenuju well known ports na vsech zarizenich v siti
-                        {
 
-                        }
-                        else //skenuju range portu na vsech zarizenich
+                        if (startPort != 0 && startPort == endPort)   //skenuju jen jeden port
                         {
+                            Console.WriteLine("Porty:");
 
+                            string result = explorer.ScanPort(host.IP, startPort);
+                            if (result == String.Empty)
+                            {
+                                Console.WriteLine("\t" + startPort + ": port neodpovida (je pravdepodobne zavreny)");
+                            }
+                            else
+                            {
+                                Console.WriteLine("\t" + result);
+                            }
+                        }
+                        else if (startPort == 0 && endPort == 0)    //scan well known ports
+                        {
+                            Console.WriteLine("Zahajen scan castych tcp portu.... (toto muze chvili trvat)");
+
+                            List<string> ports = explorer.ScanWellKnownPorts(host.IP);
+
+                            if (ports.Count == 0)
+                            {
+                                Console.WriteLine("Nebyly nalezeny zadne otevrene porty");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Nalezene otevrene porty:");
+                                foreach (string text in ports)
+                                {
+                                    Console.WriteLine(text);
+                                }
+                            }
+                        }
+                        else //scanuju range poru ktery je specifikovany pomoci startPort a endPort
+                        {
+                            Console.WriteLine($"Zahajen scan tcp portu {startPort} az {endPort}.... (toto muze chvili trvat)");
+
+                            List<string> ports = explorer.ScanPortRange(host.IP, startPort, endPort);
+
+                            if (ports.Count == 0)
+                            {
+                                Console.WriteLine("Nebyly nalezeny zadne otevrene porty");
+                            }
+                            else
+                            {
+                                Console.WriteLine("Nalezene otevrene porty:");
+                                foreach (string text in ports)
+                                {
+                                    Console.WriteLine(text);
+                                }
+                            }
                         }
                     }
                 }
