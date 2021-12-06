@@ -18,8 +18,8 @@ Popr. si muzete aplikaci buildnout sami ze stazeneho zdrojoveho kodu, na coz bud
 
 ## Pro OSE:
 
-Diky projektu jsem se naucil principy vicevlaknoveho programovani a jeho implementaci v C# (Tasky, Thready,…). Take networking: navazovani TCP spojeni, pingovani (a spravny management vlaken s tim spojeny),…  
-Projekt ponekud prerostl puvodni zamer vytvorit pouze jednoduchy scanner, takze na nem budu s velkou pravdepodobnosti pokracovat
+Diky projektu jsem se naucil principy vicevlaknoveho programovani a jeho implementaci v C# (Tasky, Thready,…). Take networking: navazovani TCP spojeni, pingovani (a spravny management vlaken s tim spojeny),… Dale jsem se naucil take diky tomuto projektu praci s Gitem, githubem a jejich integraci ve Visual Studiu  
+Projekt ponekud prerostl puvodni zamer vytvorit pouze jednoduchy scanner, takze na nem budu s velkou pravdepodobnosti dale pokracovat
 
 <br>
 
