@@ -138,7 +138,6 @@ namespace NetworkExplorer
 
             void ShowHelp()
             {
-                //Console.WriteLine("TOTO JE BASIC HELP, neni hototva");
                 Console.ForegroundColor = ConsoleColor.Yellow;
                 Console.WriteLine("NEXP - Network Explorer");
                 Console.ForegroundColor = ConsoleColor.White;
@@ -149,11 +148,6 @@ namespace NetworkExplorer
                 Console.ForegroundColor = ConsoleColor.White;
                 Console.WriteLine("'ip_adresa' je IPv4 v decimalnim formatu;\t'/maska' je CIDR maska site s hodnotami mezi 1 a 30;");
                 Console.WriteLine("'port(y)' muze byt byd jeden port pro oskenovani na cilovem zarizeni/siti,\tnebo rozsah portu pro oskenovani ve formatu 'prvni_port'-'druhy_port'");
-
-                //Console.WriteLine("Zadejte ip adresu a pripadne masku ve tvaru 192.168.1.1/24 bez mezer");
-
-                //todo: dodelat help metodu
-                //throw new NotImplementedException("Metoda 'Show Help' jeste neni hotova");
             }
 
 
@@ -230,14 +224,7 @@ namespace NetworkExplorer
                 var pingSweepTask = explorer.PingSweepRange(ipToScan, maska);
                 pingSweepTask.Wait();   //musim waitovat, aby mi program neskoncil a nezabil background vlakna na kterych bezi pingy
 
-                //todo: jen debug
-                Console.WriteLine(pingSweepTask.Status);
-                Console.WriteLine(pingSweepTask.Result.Count);
-
-
                 List<Device> hosts = pingSweepTask.Result;
-
-                Console.WriteLine("hosts.count: " + hosts.Count);
 
                 Console.Write("Scan dokoncen. ");
 

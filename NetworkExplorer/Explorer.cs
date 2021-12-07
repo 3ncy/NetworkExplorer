@@ -29,10 +29,6 @@ namespace NetworkExplorer
             byte[] networkIP = GetNetAddress(ipToScan, mask);
             int numberOfHosts = GetNumberOfHosts(ipToScan, mask);
 
-            //TODO: tohle je jenom debug    
-            //Console.WriteLine("network address: " + String.Join('.', networkIP));
-            //Console.WriteLine("spocitano povolenych host ip na siti: " + numberOfHosts);
-
             IsLocalMachineConnectedToScannedNet(networkIP, numberOfHosts); //sice nic nedelam s outputem, ale volam tuto metodu,
                                                                            //abych si priradil do promenne "localIP" moji ip ktera je na spolecnem subnetu jako skenovane ip
 
@@ -393,8 +389,6 @@ namespace NetworkExplorer
 
             if (reply.Status == IPStatus.Success)
             {
-                //TODO: tady nejaky vypis co jsem nasel ig
-
                 Console.WriteLine("Nalezeno bezici zarizeni s ip " + String.Join('.', ip));
                 lock (_zamek)
                 {
